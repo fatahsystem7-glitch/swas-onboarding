@@ -44,13 +44,35 @@ Built to deploy on **Railway** with managed PostgreSQL.
 
 ```
 db/schema.sql              PostgreSQL schema
-src/index.js               Express app entry
+public/index.html          Minimal client dashboard (call list, playback, transcripts)
+Dockerfile                 Production container image
+src/index.js               Express app entry (API + dashboard + recordings)
 src/config/env.js          Environment config
 src/db/                    Pool, migrate, seed, repositories
 src/services/              telnyx, livekit, email, storage, onboarding orchestration
 src/routes/                onboard, webhooks, clients, calls
 src/middleware/            upload (multer), validate (zod), auth, error handling
 src/utils/                 logger, Telnyx Ed25519 signature verification
+worker/                    sitering-receptionist LiveKit voice agent (separate service)
+```
+
+## Client dashboard
+
+A zero-dependency dashboard is served at `/` (from `public/index.html`). Enter a
+`client_id` (or open `/?client_id=<uuid>`) to view the client's profile, status,
+and call history with in-browser audio playback, transcripts and AI summaries.
+
+## The receptionist worker
+
+The AI voice agent lives in [`worker/`](./worker) as its own deployable service.
+See [`worker/README.md`](./worker/README.md). Deploy it alongside this API,
+pointing at the same LiveKit project and database.
+
+## Docker
+
+```bash
+docker build -t swas-onboarding .
+docker run -p 3000:3000 --env-file .env swas-onboarding
 ```
 
 ## Getting started (local)

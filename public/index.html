@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SiteRing — Client Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #262d38; --text: #e6edf3;
+    --muted: #8b949e; --brand: #0b5cff; --green: #2ea043; --amber: #d29922; --red: #da3633;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg); color: var(--text); }
+  header { padding: 20px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+  header .logo { width: 34px; height: 34px; border-radius: 8px; background: linear-gradient(135deg,#0b5cff,#5b8cff);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; }
+  header h1 { font-size: 18px; margin: 0; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 24px 20px 60px; }
+  .controls { display: flex; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
+  input[type=text] { flex: 1; min-width: 260px; padding: 11px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); font-size: 14px; }
+  button { padding: 11px 18px; border-radius: 8px; border: none; background: var(--brand); color: #fff;
+    font-weight: 600; cursor: pointer; font-size: 14px; }
+  button:hover { filter: brightness(1.08); }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 18px; }
+  .profile { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 16px; }
+  .field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 4px; }
+  .field .val { font-size: 15px; font-weight: 600; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge.active { background: rgba(46,160,67,.15); color: var(--green); }
+  .badge.pending { background: rgba(210,153,34,.15); color: var(--amber); }
+  .badge.rejected { background: rgba(218,54,51,.15); color: var(--red); }
+  h2 { font-size: 15px; margin: 26px 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .call { border-bottom: 1px solid var(--border); padding: 16px 0; }
+  .call:last-child { border-bottom: none; }
+  .call-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .call-head .who { font-weight: 600; }
+  .call-head .when { color: var(--muted); font-size: 13px; }
+  .lead-tag { background: rgba(11,92,255,.15); color: #5b8cff; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .summary { margin: 8px 0; color: var(--text); font-size: 14px; }
+  .transcript { margin-top: 8px; }
+  .transcript summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  .transcript pre { white-space: pre-wrap; background: #0d1117; padding: 12px; border-radius: 8px; font-size: 13px;
+    border: 1px solid var(--border); margin-top: 8px; }
+  audio { width: 100%; margin-top: 10px; }
+  .empty, .error { color: var(--muted); padding: 20px 0; }
+  .error { color: var(--red); }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo">SR</div>
+    <h1>SiteRing — Client Dashboard</h1>
+  </header>
+
+  <div class="wrap">
+    <div class="controls">
+      <input id="clientId" type="text" placeholder="Enter client_id (UUID)…" />
+      <button id="loadBtn">Load</button>
+    </div>
+
+    <div id="profile" class="card hidden"></div>
+
+    <div id="callsSection" class="hidden">
+      <h2 id="callsHeading">Calls</h2>
+      <div id="calls" class="card"></div>
+    </div>
+
+    <div id="msg" class="empty">Enter a client ID above to view their profile and calls.</div>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function statusBadge(status) {
+    const s = (status || '').toUpperCase();
+    let cls = 'pending';
+    if (s === 'ACTIVE') cls = 'active';
+    else if (s.includes('REJECT')) cls = 'rejected';
+    return `<span class="badge ${cls}">${esc(s || 'UNKNOWN')}</span>`;
+  }
+
+  function fmtDate(d) {
+    if (!d) return '—';
+    try { return new Date(d).toLocaleString('en-GB'); } catch { return d; }
+  }
+  function fmtDuration(secs) {
+    if (secs == null) return '';
+    const m = Math.floor(secs / 60), s = secs % 60;
+    return ` · ${m}m ${String(s).padStart(2,'0')}s`;
+  }
+
+  async function load() {
+    const id = $('clientId').value.trim();
+    if (!id) return;
+    $('msg').className = 'empty';
+    $('msg').textContent = 'Loading…';
+    $('profile').classList.add('hidden');
+    $('callsSection').classList.add('hidden');
+
+    try {
+      const [pRes, cRes] = await Promise.all([
+        fetch(`/api/clients/${encodeURIComponent(id)}`),
+        fetch(`/api/clients/${encodeURIComponent(id)}/calls`),
+      ]);
+      if (!pRes.ok) throw new Error(pRes.status === 404 ? 'Client not found.' : `Profile error (${pRes.status})`);
+      const p = await pRes.json();
+      const c = cRes.ok ? await cRes.json() : { calls: [] };
+
+      renderProfile(p);
+      renderCalls(c.calls || []);
+      $('msg').textContent = '';
+    } catch (err) {
+      $('msg').className = 'error';
+      $('msg').textContent = err.message || 'Failed to load.';
+    }
+  }
+
+  function renderProfile(p) {
+    $('profile').innerHTML = `
+      <div class="profile">
+        <div class="field"><label>Business</label><div class="val">${esc(p.business_name)}</div></div>
+        <div class="field"><label>Contact</label><div class="val">${esc(p.contact_name || '—')}</div></div>
+        <div class="field"><label>Email</label><div class="val">${esc(p.email)}</div></div>
+        <div class="field"><label>AI Number</label><div class="val">${esc(p.telnyx_number || 'Pending')}</div></div>
+        <div class="field"><label>Status</label><div class="val">${statusBadge(p.status)}</div></div>
+        <div class="field"><label>Emergency Fwd</label><div class="val">${esc(p.emergency_number || '—')}</div></div>
+      </div>`;
+    $('profile').classList.remove('hidden');
+  }
+
+  function renderCalls(calls) {
+    $('callsSection').classList.remove('hidden');
+    $('callsHeading').textContent = `Calls (${calls.length})`;
+    if (!calls.length) {
+      $('calls').innerHTML = `<div class="empty">No calls recorded yet.</div>`;
+      return;
+    }
+    $('calls').innerHTML = calls.map(call => `
+      <div class="call">
+        <div class="call-head">
+          <span class="who">${esc(call.caller_number)}${call.is_lead ? ' <span class="lead-tag">LEAD</span>' : ''}</span>
+          <span class="when">${fmtDate(call.created_at)}${fmtDuration(call.duration_seconds)}</span>
+        </div>
+        ${call.summary ? `<div class="summary">${esc(call.summary)}</div>` : ''}
+        ${call.recording_url ? `<audio controls preload="none" src="${esc(call.recording_url)}"></audio>` : ''}
+        ${call.transcript ? `<details class="transcript"><summary>View transcript</summary><pre>${esc(call.transcript)}</pre></details>` : ''}
+      </div>`).join('');
+  }
+
+  $('loadBtn').addEventListener('click', load);
+  $('clientId').addEventListener('keydown', (e) => { if (e.key === 'Enter') load(); });
+
+  // Deep-link support: /?client_id=<uuid>
+  const qs = new URLSearchParams(location.search);
+  if (qs.get('client_id')) { $('clientId').value = qs.get('client_id'); load(); }
+</script>
+</body>
+</html>

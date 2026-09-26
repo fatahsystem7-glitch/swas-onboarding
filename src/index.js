@@ -31,6 +31,9 @@ app.use(express.urlencoded({ extended: true }));
 // Serve locally-stored recordings (fallback when S3 isn't configured).
 app.use('/recordings', express.static(resolve(env.storage.localDir)));
 
+// Serve the minimal client dashboard UI (static SPA in ./public).
+app.use(express.static(resolve('public')));
+
 // Health endpoints.
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'swas-onboarding' }));
 app.get('/health/db', async (_req, res) => {
