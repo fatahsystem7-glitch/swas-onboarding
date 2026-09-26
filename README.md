@@ -75,6 +75,25 @@ docker build -t swas-onboarding .
 docker run -p 3000:3000 --env-file .env swas-onboarding
 ```
 
+### Full stack with Docker Compose
+
+Runs PostgreSQL + API together (worker is opt-in via the `full` profile since it
+needs real LiveKit/Deepgram/OpenAI keys):
+
+```bash
+cp .env.example .env          # MOCK_PROVIDERS=true works with no provider keys
+docker compose up --build     # postgres + api
+docker compose --profile full up --build   # + sitering-receptionist worker
+```
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push/PR to `main`:
+- spins up a PostgreSQL service, installs deps, syntax-checks all modules,
+  runs migrations + seed, then boots the server and smoke-tests
+  `/health`, `/health/db`, `/`, and onboarding validation;
+- syntax-checks the worker (its native `onnxruntime-node` install is left opt-in).
+
 ## Getting started (local)
 
 ```bash

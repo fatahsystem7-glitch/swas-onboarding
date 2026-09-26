@@ -1,0 +1,84 @@
+# ─────────────────────────────────────────────────────────────
+# Local full-stack: PostgreSQL + API service + receptionist worker
+#
+#   docker compose up --build
+#
+# Copy .env.example -> .env first and fill in credentials. With
+# MOCK_PROVIDERS=true the API runs without any live provider keys.
+# The worker needs real LiveKit/Deepgram/OpenAI keys to actually run.
+# ─────────────────────────────────────────────────────────────
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: swas
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      MOCK_PROVIDERS: "true"
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/swas
+      PUBLIC_BASE_URL: http://localhost:3000
+      # Provider keys (leave blank to keep providers mocked)
+      TELNYX_API_KEY: ${TELNYX_API_KEY:-}
+      TELNYX_PUBLIC_KEY: ${TELNYX_PUBLIC_KEY:-}
+      TELNYX_SIP_CONNECTION_ID: ${TELNYX_SIP_CONNECTION_ID:-}
+      LIVEKIT_URL: ${LIVEKIT_URL:-https://1t7smtelwif.sip.livekit.cloud}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-SiteRing <onboarding@example.com>}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-}
+      AWS_REGION: ${AWS_REGION:-eu-west-2}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      AGENT_NAME: sitering-receptionist
+      LIVEKIT_URL: ${LIVEKIT_WS_URL:-wss://1t7smtelwif.livekit.cloud}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/swas
+      SWAS_API_BASE_URL: http://api:3000
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
+    restart: unless-stopped
+    # The worker needs real LiveKit/Deepgram/OpenAI keys. To skip it locally:
+    #   docker compose up --build postgres api
+    profiles: ["full"]
+
+volumes:
+  pgdata:
