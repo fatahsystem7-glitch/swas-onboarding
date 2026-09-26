@@ -4,6 +4,8 @@ export async function createClient(data) {
   const {
     business_name,
     contact_name,
+    trade_type,
+    service_requirements,
     email,
     phone_number,
     ai_greeting,
@@ -13,12 +15,14 @@ export async function createClient(data) {
 
   const { rows } = await query(
     `INSERT INTO clients
-       (business_name, contact_name, email, phone_number, ai_greeting, business_hours, emergency_number)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (business_name, contact_name, trade_type, service_requirements, email, phone_number, ai_greeting, business_hours, emergency_number)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
     [
       business_name,
       contact_name || null,
+      trade_type || null,
+      service_requirements || null,
       email,
       phone_number,
       ai_greeting || null,

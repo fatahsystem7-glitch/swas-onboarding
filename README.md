@@ -58,9 +58,26 @@ worker/                    sitering-receptionist LiveKit voice agent (separate s
 
 ## Client dashboard
 
-A zero-dependency dashboard is served at `/` (from `public/index.html`). Enter a
-`client_id` (or open `/?client_id=<uuid>`) to view the client's profile, status,
-and call history with in-browser audio playback, transcripts and AI summaries.
+The **root route `/`** serves the public marketing + onboarding funnel
+(`public/index.html`): a high-converting hero for UK trade contractors, value
+props (custom websites, automated lead capture, booking forms, missed-call
+text-back) and an interactive multi-step lead-intake form that posts to
+`/api/onboard`.
+
+The **client dashboard** (`public/dashboard.html`) is served at **`/dashboard`**
+as an internal/admin view. Enter a `client_id` (or open
+`/dashboard?client_id=<uuid>`) to view the client's profile, status, and call
+history with in-browser audio playback, transcripts and AI summaries.
+
+### Styling / Tailwind build
+
+The pages are styled with **Tailwind CSS**. The compiled stylesheet is inlined
+into `public/*.html` so the pages are fully self-contained (render offline / in
+previews with no external requests). To rebuild after editing markup:
+
+```bash
+npm run build:css   # compiles assets/tailwind.css -> inlines into public/*.html
+```
 
 ## The receptionist worker
 

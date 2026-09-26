@@ -3,6 +3,14 @@ import { z } from 'zod';
 export const onboardSchema = z.object({
   business_name: z.string().min(1, 'business_name is required').max(255),
   contact_name: z.string().max(255).optional(),
+  trade_type: z.string().max(100).optional(),
+  service_requirements: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => {
+      if (val === undefined) return undefined;
+      return Array.isArray(val) ? val.join(', ') : val;
+    }),
   email: z.string().email('valid email is required').max(255),
   phone_number: z.string().min(5, 'phone_number is required').max(50),
   target_area_code: z

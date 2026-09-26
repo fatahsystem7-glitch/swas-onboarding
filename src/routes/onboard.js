@@ -31,20 +31,18 @@ router.post(
       });
     }
 
-    // Require both compliance documents for Ofcom submission.
+    // Compliance documents are optional at intake — they can be uploaded later
+    // to complete Ofcom submission. If only one is provided we still accept it.
     const files = req.files || {};
-    if (!files.proof_of_id?.[0] || !files.proof_of_address?.[0]) {
-      return res.status(400).json({
-        error: 'missing_documents',
-        message: 'Both proof_of_id and proof_of_address files are required.',
-      });
-    }
+    const hasDocs = Boolean(files.proof_of_id?.[0] || files.proof_of_address?.[0]);
 
     const client = await runOnboarding({ input, files });
 
     return res.status(201).json({
       status: 'ok',
-      message: 'Onboarding received. Number reserved; pending regulatory approval.',
+      message: hasDocs
+        ? 'Onboarding received. Number reserved; pending regulatory approval.'
+        : 'Onboarding received. Number reserved; upload your compliance documents to complete activation.',
       client: {
         id: client.id,
         business_name: client.business_name,

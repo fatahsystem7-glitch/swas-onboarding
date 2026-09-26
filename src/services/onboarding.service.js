@@ -22,6 +22,8 @@ export async function runOnboarding({ input, files }) {
   const client = await clientsRepo.createClient({
     business_name: input.business_name,
     contact_name: input.contact_name,
+    trade_type: input.trade_type,
+    service_requirements: input.service_requirements,
     email: input.email,
     phone_number: input.phone_number,
     ai_greeting: input.ai_greeting,
@@ -56,7 +58,12 @@ export async function runOnboarding({ input, files }) {
   }
 
   // Step 2b: create a regulatory requirement group linking the documents.
-  const { requirementGroupId } = await telnyx.createRequirementGroup({ documentIds });
+  // Only when documents were supplied — otherwise this is deferred until the
+  // client uploads compliance docs to complete Ofcom submission.
+  let requirementGroupId;
+  if (documentIds.length > 0) {
+    ({ requirementGroupId } = await telnyx.createRequirementGroup({ documentIds }));
+  }
 
   // Step 1: search + order the number, linking the requirement group for Ofcom.
   const phoneNumber = await telnyx.searchLocalNumber({ areaCode: input.target_area_code });

@@ -27,3 +27,6 @@ Thumbs.db
 dist/
 build/
 coverage/
+
+# Tailwind build artifact (CSS is inlined into public/*.html)
+assets/dist.css

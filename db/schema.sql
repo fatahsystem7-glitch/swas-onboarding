@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS clients (
     id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_name            VARCHAR(255) NOT NULL,
     contact_name             VARCHAR(255),
+    trade_type               VARCHAR(100),
+    service_requirements     TEXT,
     email                    VARCHAR(255) UNIQUE NOT NULL,
     phone_number             VARCHAR(50) NOT NULL,
     telnyx_number            VARCHAR(50),
@@ -45,6 +47,10 @@ CREATE TABLE IF NOT EXISTS provider_events (
     payload       JSONB,
     received_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Add new columns to pre-existing deployments (safe no-ops if already present).
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS trade_type VARCHAR(100);
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS service_requirements TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_calls_client_id ON calls(client_id);
 CREATE INDEX IF NOT EXISTS idx_clients_telnyx_number ON clients(telnyx_number);
