@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  api:
+    name: API service (build, migrate, boot)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: swas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/swas
+      MOCK_PROVIDERS: "true"
+      NODE_ENV: test
+      PORT: "3000"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax check all modules
+        run: |
+          for f in $(find src -name '*.js'); do node --check "$f"; done
+
+      - name: Run migrations
+        run: npm run migrate
+
+      - name: Seed demo data
+        run: npm run seed
+
+      - name: Boot smoke test
+        run: |
+          npm start &
+          SERVER_PID=$!
+          # Wait for the server to accept connections
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/health > /dev/null; then break; fi
+            sleep 1
+          done
+          echo "== /health =="
+          curl -sf http://localhost:3000/health
+          echo
+          echo "== /health/db =="
+          curl -sf http://localhost:3000/health/db
+          echo
+          echo "== dashboard (/) =="
+          curl -sf -o /dev/null -w "status=%{http_code}\n" http://localhost:3000/
+          echo "== onboard validation (expect 400) =="
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:3000/api/onboard -F business_name=Test)
+          echo "onboard status=$code"
+          test "$code" = "400"
+          kill $SERVER_PID
+
+  worker:
+    name: Receptionist worker (syntax)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax check worker modules
+        run: |
+          for f in $(find src -name '*.js'); do node --check "$f"; done
+      # NOTE: full `npm ci` for the worker pulls onnxruntime-node (Silero VAD),
+      # a large native download. Enable the step below on a runner with enough
+      # memory/disk if you want an install check in CI.
+      # - name: Install worker deps
+      #   run: npm ci
